@@ -5,6 +5,8 @@ import fs from 'fs';
 import * as MediaService from './service';
 import sharp from 'sharp';
 import { AuthRequest } from '../common/middleware/auth';
+import { r2Client, R2_BUCKET_NAME } from '../common/lib/r2';
+import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 // Multer Memory Storage Configuration (Files are kept in buffer for processing)
 const storage = multer.memoryStorage();
@@ -61,17 +63,32 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
       mimeType = 'image/webp';
     }
 
-    // Save the file
-    const uploadPath = path.join(process.cwd(), 'uploads', folder || 'general');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+    // Determine bucket (R2 or local)
+    const useR2 = process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID;
+    let storagePath = `${folder || 'general'}/${fileName}`;
+
+    if (useR2) {
+      await r2Client.send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: storagePath,
+          Body: buffer,
+          ContentType: mimeType,
+        })
+      );
+    } else {
+      // Save the file locally as fallback
+      const uploadPath = path.join(process.cwd(), 'uploads', folder || 'general');
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+      const finalPath = path.join(uploadPath, fileName);
+      fs.writeFileSync(finalPath, buffer);
     }
-    const finalPath = path.join(uploadPath, fileName);
-    fs.writeFileSync(finalPath, buffer);
 
     const fileRecord = await MediaService.createFileRecord({
-      bucket: 'local',
-      path: `${folder || 'general'}/${fileName}`,
+      bucket: useR2 ? 'r2' : 'local',
+      path: storagePath,
       fileName,
       originalName: file.originalname,
       mimeType,
@@ -99,9 +116,18 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
     }
 
     // Delete physical file
-    const filePath = path.join(process.cwd(), 'uploads', fileRecord.path);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (fileRecord.bucket === 'r2') {
+      await r2Client.send(
+        new DeleteObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: fileRecord.path,
+        })
+      );
+    } else {
+      const filePath = path.join(process.cwd(), 'uploads', fileRecord.path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
 
     await MediaService.deleteFile(req.params.id as string);
