@@ -3,28 +3,15 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import * as MediaService from './service';
+import sharp from 'sharp';
 import { AuthRequest } from '../common/middleware/auth';
 
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const folder = req.body.folder || 'general';
-    const uploadPath = path.join(process.cwd(), 'uploads', folder);
-    
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
+// Multer Memory Storage Configuration (Files are kept in buffer for processing)
+const storage = multer.memoryStorage();
 
 export const upload = multer({ 
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // Increase to 10MB to allow for high-res source files
 });
 
 export const listFiles = async (req: AuthRequest, res: Response) => {
@@ -55,13 +42,40 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
       sourceModule, linkedEntityType, linkedEntityId, visibility, folder,
     } = req.body;
 
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    let fileName = uniqueSuffix + path.extname(file.originalname);
+    let mimeType = file.mimetype;
+    let buffer = file.buffer;
+    let size = file.size;
+
+    // Optimization: If it's an image, process it with Sharp
+    if (file.mimetype.startsWith('image/')) {
+      const optimized = await sharp(file.buffer)
+        .resize({ width: 1200, withoutEnlargement: true }) // Max width 1200px
+        .webp({ quality: 80 }) // Convert to webp with 80% quality
+        .toBuffer({ resolveWithObject: true });
+      
+      buffer = optimized.data;
+      size = optimized.info.size;
+      fileName = uniqueSuffix + '.webp';
+      mimeType = 'image/webp';
+    }
+
+    // Save the file
+    const uploadPath = path.join(process.cwd(), 'uploads', folder || 'general');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    const finalPath = path.join(uploadPath, fileName);
+    fs.writeFileSync(finalPath, buffer);
+
     const fileRecord = await MediaService.createFileRecord({
-      bucket: 'local', // Indicator for local storage
-      path: `${folder || 'general'}/${file.filename}`,
-      fileName: file.filename,
+      bucket: 'local',
+      path: `${folder || 'general'}/${fileName}`,
+      fileName,
       originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
+      mimeType,
+      size,
       uploadedBy: req.user!.id,
       uploadedByRole: req.user!.role,
       sourceModule,
