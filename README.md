@@ -1,61 +1,36 @@
 # Amana Mart Backend API
 
-A professional, high-performance backend for the Amana Mart Super App ecosystem.
+Centralized backend for the Amana Mart Super App ecosystem.
 
-## Technology Stack
-- **Node.js** (v20+)
-- **TypeScript**
-- **Express** (Framework)
-- **Prisma** (ORM)
-- **Supabase / PostgreSQL** (Database)
-- **JWT** (Authentication)
+## Technologies
+- **Runtime**: Node.js
+- **Language**: TypeScript
+- **Database**: PostgreSQL (via Supabase)
+- **ORM**: Prisma
+- **Auth**: JWT-based RBAC
+- **Communication**: REST API (Express)
 
-## Core Modules
-1. **Grocery**: Inventory and order management for groceries.
-2. **Pharmacy**: Healthcare and medicine delivery logic.
-3. **Food**: Restaurant and cafe ordering system.
-4. **Shop**: General ecommerce and marketplace APIs.
-5. **Courier / Parcel**: Real-time logistics and parcel tracking.
-6. **Ride Share + Rental**: Transportation and vehicle rental logic.
-7. **Service**: Professional home services marketplace.
-8. **Classified**: Bikroy-style buy/sell/rent system.
+## The 8 Core Modules
+1. **Grocery**: Stock-based marketplace.
+2. **Pharmacy**: Healthcare & medicine delivery.
+3. **Food**: Restaurant ecosystem.
+4. **Shop**: General ecommerce.
+5. **Courier System**: Parcel logistics.
+6. **Ride Share + Rental**: Transport & vehicle rental.
+7. **Service**: Professional home services.
+8. **Classified Marketplace**: Buy/Sell/Rent/Jobs.
 
-## Setup Instructions
+## Setup
+1. Clone the repository.
+2. Run `npm install`.
+3. Create a `.env` file from `.env.example`.
+4. Run `npx prisma generate`.
+5. Start development server: `npm run dev`.
 
-### 1. Prerequisites
-- Node.js installed
-- PostgreSQL (or Supabase project)
-
-### 2. Installation
-```bash
-npm install
-```
-
-### 3. Environment Variables
-Copy `.env.example` to `.env` and fill in your credentials.
-```bash
-cp .env.example .env
-```
-
-### 4. Database Setup
-```bash
-npx prisma db push
-npx prisma generate
-npm run seed
-```
-
-### 5. Running the API
-```bash
-# Development
-npm run dev
-
-# Production Build
-npm run build
-npm start
-```
-
-## API Documentation
-Documentation for all endpoints is available in the [amana-mart-docs](https://github.com/Amanamart/amana-mart-docs) repository.
+## Environment Variables
+- `DATABASE_URL`: Connection string for the PostgreSQL database.
+- `JWT_SECRET`: Secret key for token signing.
+- `SUPABASE_URL` / `SUPABASE_KEY`: Supabase integration keys.
 
 ---
 © 2026 Amana Mart. All rights reserved.

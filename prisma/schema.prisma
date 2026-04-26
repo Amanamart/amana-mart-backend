@@ -154,6 +154,8 @@ model Module {
   slug        String   @unique
   type        String   @unique // grocery, pharmacy, ecommerce, food
   icon        String?
+  themeColor  String?  @default("#000000")
+  description String?  @db.Text
   status      String   @default("active")
   commission  Float    @default(10)
   sortOrder   Int      @default(0)

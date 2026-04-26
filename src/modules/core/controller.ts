@@ -10,6 +10,24 @@ export const getModules = async (req: Request, res: Response) => {
   }
 };
 
+export const getActiveModules = async (req: Request, res: Response) => {
+  try {
+    const modules = await ModuleService.getActive();
+    res.json(modules);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getModulesByZone = async (req: Request, res: Response) => {
+  try {
+    const modules = await ModuleService.getByZone(req.params.zoneId);
+    res.json(modules);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const getModuleBySlug = async (req: Request, res: Response) => {
   try {
     const module = await ModuleService.getBySlug(req.params.slug as string);
