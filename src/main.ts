@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
@@ -106,6 +107,9 @@ export { prisma };
 
 import { initMeilisearch } from './modules/search/meilisearch.client';
 import { startSearchIndexWorker } from './jobs/search-index.worker';
+import { initSocket } from './common/lib/socket';
+
+const httpServer = createServer(app);
 
 const startServer = async () => {
   // Initialize Meilisearch
@@ -114,9 +118,13 @@ const startServer = async () => {
   // Start Background Workers
   startSearchIndexWorker().catch(err => console.error('Failed to start Search Index worker:', err));
 
-  app.listen(PORT, () => {
+  // Initialize Socket.io
+  initSocket(httpServer);
+
+  httpServer.listen(PORT, () => {
     console.log(`🚀 Amana Mart Backend running on port ${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔌 Socket.io initialized`);
   });
 };
 
