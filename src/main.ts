@@ -107,15 +107,17 @@ export { prisma };
 import { initMeilisearch } from './modules/search/meilisearch.client';
 import { startSearchIndexWorker } from './jobs/search-index.worker';
 
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, async () => {
-    console.log(`🚀 Amana Mart Backend running on http://localhost:${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+const startServer = async () => {
+  // Initialize Meilisearch
+  await initMeilisearch().catch(err => console.error('Failed to initialize Meilisearch:', err));
+  
+  // Start Background Workers
+  startSearchIndexWorker().catch(err => console.error('Failed to start Search Index worker:', err));
 
-    // Initialize Meilisearch
-    await initMeilisearch();
-    
-    // Start Background Workers
-    startSearchIndexWorker().catch(err => console.error('Failed to start Search Index worker:', err));
+  app.listen(PORT, () => {
+    console.log(`🚀 Amana Mart Backend running on port ${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
   });
-}
+};
+
+startServer();

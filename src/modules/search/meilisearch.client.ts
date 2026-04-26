@@ -6,10 +6,13 @@ dotenv.config();
 const host = process.env.MEILISEARCH_HOST || 'http://localhost:7700';
 const apiKey = process.env.MEILISEARCH_MASTER_KEY || ''; // Use master key for admin operations
 
-export const meilisearch = new Meilisearch({
-  host,
-  apiKey,
-});
+export const meilisearch = host && apiKey 
+  ? new Meilisearch({ host, apiKey })
+  : null;
+
+if (!meilisearch) {
+  console.warn('⚠️ Meilisearch host or API key missing. Search will fallback to PostgreSQL.');
+}
 
 export const MEILI_INDEX_PRODUCTS = 'amanamart_products';
 export const MEILI_INDEX_CATEGORIES = 'amanamart_categories';

@@ -25,6 +25,9 @@ export const globalSearch = async (req: Request, res: Response) => {
 
   try {
     // 1. Try Meilisearch
+    if (!meilisearch) {
+      throw new Error('Meilisearch not configured');
+    }
     const index = meilisearch.index(MEILI_INDEX_ALL);
     
     // Construct filters
