@@ -1,0 +1,1512 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Core System Models
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  phone         String?   @unique
+  role          UserRole  @default(CUSTOMER)
+  customRoleId  String?
+  status        String    @default("active") // active, blocked, pending
+  walletBalance Float     @default(0)
+  loyaltyPoints Int       @default(0)
+
+  // Rider specific fields
+  riderVehicle  String?   // motorcycle, bicycle, car, van
+  isOnline      Boolean   @default(false)
+  zoneId        String?
+
+  customRole    Role?     @relation(fields: [customRoleId], references: [id])
+  zone          Zone?     @relation(fields: [zoneId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts             Account[]
+  sessions             Session[]
+  stores               Store[]            @relation("StoreOwner")
+  orders               Order[]            @relation("CustomerOrders")
+  riderOrders          Order[]            @relation("RiderOrders")
+  riderWithdrawals     WithdrawalRequest[]
+  uploadedFiles        MediaFile[]
+  wishlists            Wishlist[]
+  productReviews       ProductReview[]
+  storeReviews         StoreReview[]
+  loyaltyTransactions  LoyaltyTransaction[]
+  referralCodeOwner    ReferralCode?
+  referredByCode       String?
+  conversationMembers  ConversationMember[]
+  sentMessages         Message[]
+  messageReads         MessageRead[]
+  auditLogs            AuditLog[]
+  whatsappSessions     WhatsAppSession[]
+  classifiedAds        ClassifiedAd[]
+  adReports            AdReport[]
+  prescriptions        PharmacyPrescription[]
+  verifiedProfile      VerifiedProfile?
+  vehicle              Vehicle?
+  ridesAsCustomer      RideRequest[] @relation("RideCustomer")
+  ridesAsDriver        RideRequest[] @relation("RideDriver")
+
+  // New Classified Marketplace relations
+  classifiedSeller     ClassifiedSeller?
+  savedAds             ClassifiedSavedAd[]
+  classifiedReports    ClassifiedAdReport[]
+  classifiedMemberships ClassifiedMembership[]
+  classifiedAdPromotions ClassifiedAdPromotion[]
+  classifiedPhoneReveals ClassifiedPhoneReveal[]
+  classifiedMessages   ClassifiedMessage[]
+  classifiedConvAsBuyer  ClassifiedConversation[] @relation("ClassifiedBuyer")
+  classifiedConvAsSeller ClassifiedConversation[] @relation("ClassifiedSeller")
+
+  // Super App Expansion Relations
+  rentalBookings       RentalBooking[]   @relation("RentalCustomer")
+  serviceBookings      ServiceBooking[]  @relation("ServiceCustomer")
+  parcelOrdersAsCust   ParcelOrder[]     @relation("ParcelCustomer")
+  parcelOrdersAsRider  ParcelOrder[]     @relation("ParcelRider")
+  affiliateProfile     AffiliateProfile?
+  serviceProvider      ServiceProvider?
+}
+
+model VerifiedProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  idNumber          String?  // NID, Passport, etc.
+  idImage           String?  // Link to uploaded ID
+  status            String   @default("pending") // pending, verified, rejected
+  verificationDate  DateTime?
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Role {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  permissions String[]
+  users       User[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  VENDOR
+  CUSTOMER
+  RIDER
+  EMPLOYEE
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// -----------------------------------------------------------------------------
+// Business & E-commerce Models
+// -----------------------------------------------------------------------------
+
+model Module {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  type        String   @unique // grocery, pharmacy, ecommerce, food
+  icon        String?
+  status      String   @default("active")
+  commission  Float    @default(10)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stores      Store[]
+  categories  Category[]
+  banners     Banner[]
+  coupons     Coupon[]
+  campaigns   Campaign[]
+}
+
+model Zone {
+  id          String   @id @default(cuid())
+  name        String
+  area        String   @db.Text
+  status      String   @default("active")
+
+  extraDeliveryCharge       Float    @default(0)
+  extraDeliveryChargeReason String?
+  extraDeliveryChargeActive Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  banners     Banner[]
+  users       User[]
+}
+
+model WithdrawalRequest {
+  id            String   @id @default(cuid())
+  amount        Float
+  status        String   @default("pending") // pending, approved, paid, rejected
+  method        String
+  details       String?  @db.Text
+  adminNote     String?  @db.Text
+  storeId       String?
+  riderId       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  store         Store?   @relation(fields: [storeId], references: [id])
+  rider         User?    @relation(fields: [riderId], references: [id])
+}
+
+model Store {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  logo            String?
+  cover           String?
+  address         String?
+  phone           String?
+  status          String   @default("pending") // pending, active, suspended
+  moduleId        String
+  ownerId         String
+  isRecommended   Boolean  @default(false)
+  deliveryTime    String?  // "25-30 min"
+  minOrder        Float    @default(0)
+  deliveryFee     Float    @default(0)
+  rating          Float    @default(0)
+  totalReviews    Int      @default(0)
+  zoneIds         String[] // zones this store serves
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  module      Module   @relation(fields: [moduleId], references: [id])
+  owner       User     @relation("StoreOwner", fields: [ownerId], references: [id])
+  products    Product[]
+  orders      Order[]
+  withdrawals WithdrawalRequest[]
+  addons      Addon[]
+  reviews     StoreReview[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  image       String?
+  moduleId    String
+  parentId    String?
+  status      String   @default("active")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  module      Module    @relation(fields: [moduleId], references: [id])
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  classifiedAds ClassifiedAd[]
+  servicePackages ServicePackage[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String?  @db.Text
+  price        Float
+  discountedPrice Float?
+  stock        Int      @default(0)
+  images       String[]
+  status       String   @default("active")
+  storeId      String
+  categoryId   String
+  isFeatured   Boolean  @default(false)
+  isPopular    Boolean  @default(false)
+  tags         String[]
+  unit         String?  // kg, piece, litre
+  rating       Float    @default(0)
+  totalReviews Int      @default(0)
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+
+  // Module specific
+  requiresPrescription Boolean   @default(false)
+  cuisineId           String?
+  conditionId         String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store       Store    @relation(fields: [storeId], references: [id])
+  category    Category @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+  addons      ProductAddon[]
+  cuisine     Cuisine?   @relation(fields: [cuisineId], references: [id])
+  condition   Condition? @relation(fields: [conditionId], references: [id])
+  reviews     ProductReview[]
+  wishlists   Wishlist[]
+  flashSaleProducts FlashSaleProduct[]
+  variations  ProductVariation[]
+  attributes  Attribute[]
+}
+
+model Cuisine {
+  id        String    @id @default(cuid())
+  name      String
+  image     String?
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Condition {
+  id        String    @id @default(cuid())
+  name      String
+  image     String?
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Addon {
+  id        String       @id @default(cuid())
+  name      String
+  price     Float
+  status    String       @default("active")
+  storeId   String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  store     Store        @relation(fields: [storeId], references: [id])
+  products  ProductAddon[]
+}
+
+model ProductAddon {
+  productId String
+  addonId   String
+  product   Product @relation(fields: [productId], references: [id])
+  addon     Addon   @relation(fields: [addonId], references: [id])
+
+  @@id([productId, addonId])
+}
+
+model Attribute {
+  id        String   @id @default(cuid())
+  name      String
+  values    AttributeValue[]
+  products  Product[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AttributeValue {
+  id          String    @id @default(cuid())
+  attributeId String
+  value       String
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProductVariation {
+  id        String   @id @default(cuid())
+  productId String
+  name      String   // e.g. "Red-Small"
+  price     Float
+  stock     Int      @default(0)
+  sku       String?
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+// -----------------------------------------------------------------------------
+// Orders
+// -----------------------------------------------------------------------------
+
+model Order {
+  id             String   @id @default(cuid())
+  orderNumber    String   @unique
+  totalAmount    Float
+  subtotal       Float    @default(0)
+  deliveryFee    Float    @default(0)
+  discount       Float    @default(0)
+  status         String   @default("pending")
+  paymentStatus  String   @default("unpaid")
+  paymentMethod  String   @default("cod")
+  customerId     String
+  storeId        String
+  riderId        String?
+  deliveryAddress String? @db.Text
+  orderNotes     String?  @db.Text
+  source         String   @default("web") // web, mobile, whatsapp
+  couponCode     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  customer      User     @relation("CustomerOrders", fields: [customerId], references: [id])
+  rider         User?    @relation("RiderOrders", fields: [riderId], references: [id])
+  store         Store    @relation(fields: [storeId], references: [id])
+  items         OrderItem[]
+  transactions  Transaction[]
+  refunds       Refund[]
+  whatsappOrder WhatsAppOrder?
+  prescription  PharmacyPrescription?
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  orderId   String
+  amount    Float
+  type      String   // payment, refund
+  method    String
+  status    String   @default("success")
+  txnId     String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order    @relation(fields: [orderId], references: [id])
+}
+
+model Refund {
+  id        String   @id @default(cuid())
+  orderId   String
+  amount    Float
+  reason    String   @db.Text
+  status    String   @default("pending")
+  adminNote String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order    @relation(fields: [orderId], references: [id])
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// Promotions
+// -----------------------------------------------------------------------------
+
+model Banner {
+  id        String   @id @default(cuid())
+  title     String
+  image     String
+  link      String?
+  status    String   @default("active")
+  moduleId  String?
+  zoneId    String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  module    Module?  @relation(fields: [moduleId], references: [id])
+  zone      Zone?    @relation(fields: [zoneId], references: [id])
+}
+
+model Coupon {
+  id           String   @id @default(cuid())
+  title        String
+  code         String   @unique
+  type         String   @default("percent")
+  discount     Float
+  minPurchase  Float    @default(0)
+  maxDiscount  Float?
+  startDate    DateTime
+  endDate      DateTime
+  status       String   @default("active")
+  moduleId     String?
+  limitPerUser Int      @default(1)
+  totalLimit   Int?
+  usedCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  module       Module?  @relation(fields: [moduleId], references: [id])
+  usages       CouponUsage[]
+}
+
+model CouponUsage {
+  id        String   @id @default(cuid())
+  couponId  String
+  userId    String
+  orderId   String
+  usedAt    DateTime @default(now())
+  coupon    Coupon   @relation(fields: [couponId], references: [id])
+
+  @@unique([couponId, userId, orderId])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  body        String   @db.Text
+  image       String?
+  audience    String
+  status      String   @default("sent")
+  sentCount   Int      @default(0)
+  moduleId    String?
+  zoneId      String?
+  scheduledAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  type        String   @default("basic")
+  discount    Float
+  target      String
+  budget      Float    @default(0)
+  spent       Float    @default(0)
+  reach       Int      @default(0)
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("active")
+  moduleId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  module      Module?  @relation(fields: [moduleId], references: [id])
+}
+
+model FlashSale {
+  id           String   @id @default(cuid())
+  title        String
+  discount     Float
+  discountType String   @default("percentage")
+  startDate    DateTime
+  endDate      DateTime
+  status       String   @default("upcoming")
+  ordersCount  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  products     FlashSaleProduct[]
+}
+
+model FlashSaleProduct {
+  flashSaleId String
+  productId   String
+  discount    Float?
+  flashSale   FlashSale @relation(fields: [flashSaleId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@id([flashSaleId, productId])
+}
+
+model AnnouncementBanner {
+  id        String   @id @default(cuid())
+  message   String
+  link      String?
+  color     String   @default("#005555")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// System Settings & CMS
+// -----------------------------------------------------------------------------
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  group     String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PageContent {
+  id        String   @id @default(cuid())
+  slug      String   @unique // privacy-policy, terms-of-service, about-us, etc.
+  title     String
+  content   String   @db.Text
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Customer Features
+// -----------------------------------------------------------------------------
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+}
+
+model ProductReview {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  rating    Int      // 1–5
+  comment   String?  @db.Text
+  images    String[]
+  status    String   @default("active") // active, hidden
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([productId, userId])
+}
+
+model StoreReview {
+  id        String   @id @default(cuid())
+  storeId   String
+  userId    String
+  rating    Int
+  comment   String?  @db.Text
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  store     Store    @relation(fields: [storeId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([storeId, userId])
+}
+
+model LoyaltyTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  points      Int
+  type        String   // earn, redeem
+  description String
+  referenceId String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model ReferralCode {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  code       String   @unique
+  usedCount  Int      @default(0)
+  totalEarned Float   @default(0)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// Internal Messaging
+// -----------------------------------------------------------------------------
+
+model Conversation {
+  id        String   @id @default(cuid())
+  title     String?
+  type      String   @default("direct") // direct, group
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   ConversationMember[]
+  messages  Message[]
+}
+
+model ConversationMember {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  role           String   @default("member") // admin, member
+  isAdmin        Boolean  @default(false)
+  joinedAt       DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String?  @db.Text
+  type           String   @default("text") // text, image, voice, file
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  conversation   Conversation   @relation(fields: [conversationId], references: [id])
+  sender         User           @relation(fields: [senderId], references: [id])
+  attachments    MessageAttachment[]
+  reads          MessageRead[]
+}
+
+model MessageAttachment {
+  id          String   @id @default(cuid())
+  messageId   String
+  fileName    String
+  mimeType    String
+  size        Int
+  url         String
+  mediaFileId String?
+  createdAt   DateTime @default(now())
+  message     Message  @relation(fields: [messageId], references: [id])
+}
+
+model MessageRead {
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@id([messageId, userId])
+}
+
+// -----------------------------------------------------------------------------
+// File Manager / Media Library
+// -----------------------------------------------------------------------------
+
+model MediaFile {
+  id               String   @id @default(cuid())
+  bucket           String
+  path             String
+  fileName         String
+  originalName     String
+  mimeType         String
+  size             Int      // bytes
+  uploadedBy       String
+  uploadedByRole   String
+  sourceModule     String?
+  linkedEntityType String?
+  linkedEntityId   String?
+  visibility       String   @default("public") // public, private
+  folder           String?
+  createdAt        DateTime @default(now())
+  uploader         User     @relation(fields: [uploadedBy], references: [id])
+  uploadLog        UploadAuditLog[]
+}
+
+model UploadAuditLog {
+  id          String   @id @default(cuid())
+  action      String   // upload, delete, update
+  userId      String
+  fileId      String
+  details     String?
+  createdAt   DateTime @default(now())
+  file        MediaFile @relation(fields: [fileId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// WhatsApp Ordering
+// -----------------------------------------------------------------------------
+
+model WhatsAppSession {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  customerId   String?
+  state        String   @default("idle") // idle, browsing, ordering, completed
+  sessionData  String?  @db.Text // JSON state
+  lastActivity DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     User?    @relation(fields: [customerId], references: [id])
+  messages     WhatsAppMessage[]
+  orders       WhatsAppOrder[]
+}
+
+model WhatsAppMessage {
+  id          String   @id @default(cuid())
+  sessionId   String
+  direction   String   // inbound, outbound
+  body        String   @db.Text
+  messageType String   @default("text") // text, image, audio, document
+  waMessageId String?  @unique
+  status      String   @default("received") // received, sent, delivered, read
+  createdAt   DateTime @default(now())
+  session     WhatsAppSession @relation(fields: [sessionId], references: [id])
+}
+
+model WhatsAppOrder {
+  id        String   @id @default(cuid())
+  sessionId String
+  orderId   String   @unique
+  phone     String
+  status    String   @default("created")
+  createdAt DateTime @default(now())
+  session   WhatsAppSession @relation(fields: [sessionId], references: [id])
+  order     Order           @relation(fields: [orderId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// Audit Logs
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String   // create, update, delete, login, logout, etc.
+  entity     String   // User, Order, Product, etc.
+  entityId   String?
+  userId     String?
+  userRole   String?
+  details    String?  @db.Text // JSON with before/after
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// Super App Modules: Classifieds (Full Bikroy-Style Marketplace)
+// -----------------------------------------------------------------------------
+
+model ClassifiedCategory {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  icon            String?
+  description     String?  @db.Text
+  parentId        String?
+  parent          ClassifiedCategory?  @relation("ClassifiedCategoryHierarchy", fields: [parentId], references: [id])
+  children        ClassifiedCategory[] @relation("ClassifiedCategoryHierarchy")
+  sortOrder       Int      @default(0)
+  status          String   @default("active") // active, inactive
+  adCount         Int      @default(0)
+  seoTitle        String?
+  seoDescription  String?
+  freePostLimit   Int      @default(5)
+  fields          ClassifiedCategoryField[]
+  ads             ClassifiedAd[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([slug])
+}
+
+model ClassifiedCategoryField {
+  id           String              @id @default(cuid())
+  categoryId   String
+  category     ClassifiedCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String              // e.g. "Brand", "RAM"
+  label        String
+  fieldType    String              // text, number, select, multiselect, checkbox, date, boolean, range
+  options      String[]            // for select/multiselect
+  isRequired   Boolean             @default(false)
+  isSearchable Boolean             @default(false)
+  isFilterable Boolean             @default(false)
+  showInCard   Boolean             @default(false)
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([categoryId])
+}
+
+model ClassifiedLocation {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  type        String   // division, district, city, area
+  parentId    String?
+  parent      ClassifiedLocation?  @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children    ClassifiedLocation[] @relation("LocationHierarchy")
+  adCount     Int      @default(0)
+  status      String   @default("active")
+  ads         ClassifiedAd[]
+  sellers     ClassifiedSeller[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([slug])
+  @@index([type])
+}
+
+model ClassifiedSeller {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopName        String?
+  shopDescription String?  @db.Text
+  avatar          String?
+  coverPhoto      String?
+  phone           String?
+  whatsapp        String?
+  sellerType      String   @default("individual") // individual, business
+  locationId      String?
+  location        ClassifiedLocation? @relation(fields: [locationId], references: [id])
+  membershipId    String?
+  membership      ClassifiedMembership? @relation(fields: [membershipId], references: [id])
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+  status          String   @default("active") // active, suspended, banned
+  totalAds        Int      @default(0)
+  activeAds       Int      @default(0)
+  totalViews      Int      @default(0)
+  rating          Float    @default(0)
+  totalReviews    Int      @default(0)
+  ads             ClassifiedAd[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model ClassifiedAd {
+  id                  String   @id @default(cuid())
+  slug                String   @unique
+  title               String
+  description         String   @db.Text
+  price               Float
+  negotiable          Boolean  @default(false)
+  condition           String   @default("used") // new, used, reconditioned
+  adType              String   @default("sale") // sale, rent, job, service, free
+  sellerType          String   @default("individual") // individual, business
+
+  // Category (new classified category system)
+  classifiedCategoryId String?
+  classifiedCategory   ClassifiedCategory? @relation(fields: [classifiedCategoryId], references: [id])
+  
+  // Legacy category (old system, keep for compatibility)
+  categoryId          String?
+  category            Category? @relation(fields: [categoryId], references: [id])
+
+  // Seller
+  sellerId            String?
+  seller              ClassifiedSeller? @relation(fields: [sellerId], references: [id])
+  userId              String
+  user                User     @relation(fields: [userId], references: [id])
+
+  // Location (new classified location)
+  locationId          String?
+  location            ClassifiedLocation? @relation(fields: [locationId], references: [id])
+  division            String?
+  district            String?
+  area                String?
+  latitude            Float?
+  longitude           Float?
+
+  // Contact
+  contactPhone        String?
+  whatsappNumber      String?
+  hidePhone           Boolean  @default(false)
+  preferredContact    String   @default("call") // call, whatsapp, chat
+
+  // Status lifecycle
+  status              String   @default("pending_review")
+  // draft, pending_review, approved, active, paused, sold, rented, closed,
+  // rejected, expired, reported, under_review, blocked, deleted
+
+  rejectReason        String?
+  adminNote           String?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  expiresAt           DateTime?
+
+  // Promotion status
+  promotionType       String?  // top_ad, urgent, featured, homepage_featured
+  isPromoted          Boolean  @default(false)
+
+  // Metrics
+  viewCount           Int      @default(0)
+  phoneRevealCount    Int      @default(0)
+  chatCount           Int      @default(0)
+  favoriteCount       Int      @default(0)
+  isFeatured          Boolean  @default(false)
+  isUrgent            Boolean  @default(false)
+  isTopAd             Boolean  @default(false)
+
+  // SEO
+  metaTitle           String?
+  metaDescription     String?
+
+  // Relations
+  fieldValues         ClassifiedAdFieldValue[]
+  media               ClassifiedAdMedia[]
+  savedBy             ClassifiedSavedAd[]
+  conversations       ClassifiedConversation[]
+  reports             ClassifiedAdReport[]
+  adPromotions        ClassifiedAdPromotion[]
+  views               ClassifiedAdView[]
+  phoneReveals        ClassifiedPhoneReveal[]
+
+  // Legacy (keep existing relations)
+  attributes          AdAttribute[]
+  promotions          AdPromotion[]
+  legacyReports       AdReport[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([classifiedCategoryId])
+  @@index([sellerId])
+  @@index([userId])
+  @@index([locationId])
+  @@index([division, district, area])
+  @@index([status])
+  @@index([price])
+  @@index([slug])
+  @@index([isPromoted])
+  @@index([createdAt])
+}
+
+model ClassifiedAdFieldValue {
+  id         String      @id @default(cuid())
+  adId       String
+  ad         ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  fieldName  String
+  fieldValue String
+  createdAt  DateTime    @default(now())
+
+  @@index([adId])
+}
+
+model ClassifiedAdMedia {
+  id          String       @id @default(cuid())
+  adId        String
+  ad          ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  url         String
+  fileName    String?
+  mimeType    String?
+  size        Int?
+  sortOrder   Int          @default(0)
+  isCover     Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  @@index([adId])
+}
+
+model ClassifiedSavedAd {
+  id        String       @id @default(cuid())
+  adId      String
+  ad        ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@unique([adId, userId])
+  @@index([userId])
+}
+
+model ClassifiedConversation {
+  id        String       @id @default(cuid())
+  adId      String
+  ad        ClassifiedAd @relation(fields: [adId], references: [id])
+  buyerId   String
+  buyer     User         @relation("ClassifiedBuyer", fields: [buyerId], references: [id])
+  sellerId  String
+  sellerUser User        @relation("ClassifiedSeller", fields: [sellerId], references: [id])
+  status    String       @default("active") // active, archived, blocked
+  isReported Boolean     @default(false)
+  lastMessageAt DateTime?
+  messages  ClassifiedMessage[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([adId, buyerId])
+  @@index([adId])
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+model ClassifiedMessage {
+  id             String                   @id @default(cuid())
+  conversationId String
+  conversation   ClassifiedConversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User                     @relation(fields: [senderId], references: [id])
+  body           String?                  @db.Text
+  messageType    String                   @default("text") // text, image, file
+  imageUrl       String?
+  isRead         Boolean                  @default(false)
+  createdAt      DateTime                 @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+}
+
+model ClassifiedAdReport {
+  id          String       @id @default(cuid())
+  adId        String
+  ad          ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  reporterId  String
+  reporter    User         @relation(fields: [reporterId], references: [id])
+  reason      String       // fraud, wrong_category, offensive, duplicate, fake_price, sold, prohibited, misleading
+  message     String?      @db.Text
+  status      String       @default("pending") // pending, reviewed, dismissed, actioned
+  adminNote   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([adId])
+  @@index([reporterId])
+}
+
+model ClassifiedMembershipPlan {
+  id              String   @id @default(cuid())
+  name            String   // Free, Member, Verified, Dealer, Featured
+  slug            String   @unique
+  description     String?  @db.Text
+  price           Float    @default(0)
+  yearlyPrice     Float?
+  adLimit         Int      @default(5)   // ads per month
+  imageLimit      Int      @default(4)   // images per ad
+  boostCredits    Int      @default(0)
+  topAdVouchers   Int      @default(0)
+  hasShopPage     Boolean  @default(false)
+  hasVerifiedBadge Boolean @default(false)
+  hasAnalytics    Boolean  @default(false)
+  hasPriority     Boolean  @default(false)
+  hasDedicatedSupport Boolean @default(false)
+  badgeColor      String?
+  badgeIcon       String?
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  memberships     ClassifiedMembership[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ClassifiedMembership {
+  id         String                   @id @default(cuid())
+  userId     String
+  user       User                     @relation(fields: [userId], references: [id])
+  planId     String
+  plan       ClassifiedMembershipPlan @relation(fields: [planId], references: [id])
+  status     String                   @default("active") // active, expired, cancelled, pending
+  startDate  DateTime                 @default(now())
+  endDate    DateTime
+  paidAmount Float                    @default(0)
+  paymentRef String?
+  sellers    ClassifiedSeller[]
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+
+  @@index([userId])
+}
+
+model ClassifiedPromotionPackage {
+  id           String   @id @default(cuid())
+  name         String   // Top Ad, Urgent, Featured, Homepage Featured
+  slug         String   @unique
+  type         String   // top_ad, urgent, featured, homepage_featured, category_featured
+  description  String?
+  price        Float
+  durationDays Int      @default(7)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  promotions   ClassifiedAdPromotion[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ClassifiedAdPromotion {
+  id          String                     @id @default(cuid())
+  adId        String
+  ad          ClassifiedAd               @relation(fields: [adId], references: [id], onDelete: Cascade)
+  packageId   String
+  package     ClassifiedPromotionPackage @relation(fields: [packageId], references: [id])
+  userId      String
+  user        User                       @relation(fields: [userId], references: [id])
+  startDate   DateTime                   @default(now())
+  endDate     DateTime
+  status      String                     @default("active") // active, expired, cancelled
+  paidAmount  Float                      @default(0)
+  paymentRef  String?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@index([adId])
+  @@index([userId])
+}
+
+model ClassifiedAdView {
+  id        String       @id @default(cuid())
+  adId      String
+  ad        ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  userId    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime     @default(now())
+
+  @@index([adId])
+  @@index([createdAt])
+}
+
+model ClassifiedPhoneReveal {
+  id        String       @id @default(cuid())
+  adId      String
+  ad        ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  createdAt DateTime     @default(now())
+
+  @@index([adId])
+}
+
+model ClassifiedSearchLog {
+  id         String   @id @default(cuid())
+  keyword    String?
+  categoryId String?
+  locationId String?
+  resultCount Int     @default(0)
+  userId     String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([keyword])
+  @@index([createdAt])
+}
+
+model ClassifiedSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  group     String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Legacy models - keep for backward compatibility
+model AdAttribute {
+  id        String       @id @default(cuid())
+  adId      String
+  name      String       // e.g. "Brand", "Model", "Mileage"
+  value     String       // e.g. "Toyota", "Corolla", "50000"
+  ad        ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([adId])
+}
+
+model AdPromotion {
+  id          String       @id @default(cuid())
+  adId        String
+  type        String       // TOP_AD, BUMP_UP, URGENT
+  startDate   DateTime
+  endDate     DateTime
+  status      String       @default("active") // active, expired
+  ad          ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([adId])
+}
+
+model AdReport {
+  id          String       @id @default(cuid())
+  adId        String
+  userId      String
+  reason      String       // FRAUD, INAPPROPRIATE, DUPLICATE, etc.
+  description String?      @db.Text
+  status      String       @default("pending") // pending, reviewed, dismissed
+  ad          ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id])
+
+  @@index([adId])
+}
+
+// -----------------------------------------------------------------------------
+// Super App Modules: Ride-Sharing & Rental (Uber/Turo-like)
+// -----------------------------------------------------------------------------
+
+model Vehicle {
+  id              String   @id @default(cuid())
+  userId          String?  @unique
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String   // BIKE, CAR, CAR_XL, TRUCK, VAN
+  brand           String?
+  model           String?
+  year            Int?
+  plateNumber     String   @unique
+  color           String?
+  image           String?
+  status          String   @default("active") // active, inactive, maintenance
+  
+  // Rental specific
+  isForRental     Boolean  @default(false)
+  isForRideShare  Boolean  @default(true)
+  hourlyRate      Float?
+  dailyRate       Float?
+  monthlyRate     Float?
+  depositAmount   Float?
+  availability    Json?    // Calendar availability
+  
+  rides           RideRequest[]
+  rentalBookings  RentalBooking[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model RideRequest {
+  id              String   @id @default(cuid())
+  customerId      String
+  customer        User     @relation("RideCustomer", fields: [customerId], references: [id])
+  driverId        String?
+  driver          User?    @relation("RideDriver", fields: [driverId], references: [id])
+  vehicleId       String?
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id])
+  
+  pickupAddress   String   @db.Text
+  pickupLat       Float
+  pickupLng       Float
+  
+  dropoffAddress  String   @db.Text
+  dropoffLat      Float
+  dropoffLng      Float
+  
+  distance        Float?   // in km
+  duration        Float?   // in minutes
+  fare            Float
+  status          String   @default("pending") // pending, accepted, ongoing, completed, cancelled
+  paymentStatus   String   @default("unpaid")
+  paymentMethod   String   @default("cash")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([driverId])
+  @@index([status])
+}
+
+model RentalBooking {
+  id              String   @id @default(cuid())
+  customerId      String
+  customer        User     @relation("RentalCustomer", fields: [customerId], references: [id])
+  vehicleId       String
+  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id])
+  
+  startDate       DateTime
+  endDate         DateTime
+  pickupLocation  String?
+  dropoffLocation String?
+  
+  totalFare       Float
+  depositAmount   Float
+  status          String   @default("pending") // pending, confirmed, active, completed, cancelled, overdue
+  paymentStatus   String   @default("unpaid")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([vehicleId])
+}
+
+// -----------------------------------------------------------------------------
+// Super App Modules: Home Services (Sheba-like)
+// -----------------------------------------------------------------------------
+
+model ServiceProvider {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  companyName     String
+  bio             String?  @db.Text
+  rating          Float    @default(0)
+  isVerified      Boolean  @default(false)
+  status          String   @default("active")
+  
+  services        ServicePackage[]
+  bookings        ServiceBooking[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ServicePackage {
+  id              String   @id @default(cuid())
+  providerId      String
+  provider        ServiceProvider @relation(fields: [providerId], references: [id])
+  name            String
+  slug            String   @unique
+  description     String   @db.Text
+  price           Float
+  discountedPrice Float?
+  image           String?
+  categoryId      String
+  category        Category @relation(fields: [categoryId], references: [id])
+  status          String   @default("active")
+  
+  bookings        ServiceBooking[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ServiceBooking {
+  id              String   @id @default(cuid())
+  customerId      String
+  customer        User     @relation("ServiceCustomer", fields: [customerId], references: [id])
+  providerId      String
+  provider        ServiceProvider @relation(fields: [providerId], references: [id])
+  packageId       String
+  package         ServicePackage  @relation(fields: [packageId], references: [id])
+  
+  bookingDate     DateTime
+  timeslot        String
+  address         String   @db.Text
+  status          String   @default("pending") // pending, confirmed, ongoing, completed, cancelled
+  paymentStatus   String   @default("unpaid")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([providerId])
+}
+
+// -----------------------------------------------------------------------------
+// Super App Modules: Parcel Delivery
+// -----------------------------------------------------------------------------
+
+model ParcelOrder {
+  id              String   @id @default(cuid())
+  orderNumber     String   @unique
+  customerId      String
+  customer        User     @relation("ParcelCustomer", fields: [customerId], references: [id])
+  riderId         String?
+  rider           User?    @relation("ParcelRider", fields: [riderId], references: [id])
+  
+  pickupAddress   String   @db.Text
+  pickupPhone     String
+  pickupName      String
+  
+  dropoffAddress  String   @db.Text
+  dropoffPhone    String
+  dropoffName     String
+  
+  packageType     String   // document, fragile, electronics, etc.
+  weight          Float?   // in kg
+  distance        Float?   // in km
+  fare            Float
+  
+  status          String   @default("pending") // pending, picked_up, in_transit, delivered, cancelled
+  paymentStatus   String   @default("unpaid")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([riderId])
+}
+
+// -----------------------------------------------------------------------------
+// Affiliate System
+// -----------------------------------------------------------------------------
+
+model AffiliateProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  referralCode    String   @unique
+  status          String   @default("pending") // pending, active, suspended
+  totalEarnings   Float    @default(0)
+  paidEarnings    Float    @default(0)
+  
+  links           AffiliateLink[]
+  clicks          AffiliateClick[]
+  commissions     AffiliateCommission[]
+  payouts         AffiliatePayout[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AffiliateLink {
+  id              String   @id @default(cuid())
+  affiliateId     String
+  affiliate       AffiliateProfile @relation(fields: [affiliateId], references: [id])
+  targetUrl       String
+  slug            String   @unique
+  clickCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+}
+
+model AffiliateClick {
+  id              String   @id @default(cuid())
+  affiliateId     String
+  affiliate       AffiliateProfile @relation(fields: [affiliateId], references: [id])
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+}
+
+model AffiliateCommission {
+  id              String   @id @default(cuid())
+  affiliateId     String
+  affiliate       AffiliateProfile @relation(fields: [affiliateId], references: [id])
+  orderId         String?
+  amount          Float
+  status          String   @default("pending") // pending, approved, rejected, paid
+  createdAt       DateTime @default(now())
+}
+
+model AffiliatePayout {
+  id              String   @id @default(cuid())
+  affiliateId     String
+  affiliate       AffiliateProfile @relation(fields: [affiliateId], references: [id])
+  amount          Float
+  method          String
+  status          String   @default("pending") // pending, completed, rejected
+  createdAt       DateTime @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// Legacy & Existing Healthcare Models
+// -----------------------------------------------------------------------------
+
+model PharmacyPrescription {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  image           String
+  status          String   @default("pending") // pending, verified, rejected
+  orderId         String?  @unique
+  order           Order?   @relation(fields: [orderId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
