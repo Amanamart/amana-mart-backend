@@ -5,10 +5,11 @@ const SHOP_MODULE_SLUG = 'shop';
 
 export const getShops = async (req: Request, res: Response) => {
   try {
-    const { categoryId } = req.query;
+    // Find shop module first, then filter stores by moduleId
+    const shopModule = await prisma.module.findUnique({ where: { slug: SHOP_MODULE_SLUG } });
     const shops = await prisma.store.findMany({
       where: {
-        module: { slug: SHOP_MODULE_SLUG },
+        moduleId: shopModule?.id,
         status: 'active',
       },
       include: {
@@ -24,9 +25,12 @@ export const getShops = async (req: Request, res: Response) => {
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const { q, categoryId, minPrice, maxPrice, storeId } = req.query;
+    // Product has moduleId (not module relation directly)
+    const shopModule = await prisma.module.findUnique({ where: { slug: SHOP_MODULE_SLUG } });
+
     const products = await prisma.product.findMany({
       where: {
-        module: { slug: SHOP_MODULE_SLUG },
+        moduleId: shopModule?.id,
         status: 'active',
         categoryId: categoryId as string | undefined,
         storeId: storeId as string | undefined,
@@ -35,7 +39,6 @@ export const getProducts = async (req: Request, res: Response) => {
           lte: maxPrice ? Number(maxPrice) : undefined,
         },
         OR: q ? [
-          { name: { contains: q as string, mode: 'insensitive' } },
           { description: { contains: q as string, mode: 'insensitive' } },
         ] : undefined,
       },
@@ -52,8 +55,9 @@ export const getProducts = async (req: Request, res: Response) => {
 
 export const getShopDetails = async (req: Request, res: Response) => {
   try {
+    const { id } = req.params as { id: string };
     const shop = await prisma.store.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         products: {
           where: { status: 'active' },

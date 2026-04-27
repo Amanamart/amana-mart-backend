@@ -35,10 +35,19 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(uploadsDir));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
+// Comprehensive Health check
+import { getHealthReport } from './common/lib/health';
+app.get('/api/health', async (req, res) => {
+  try {
+    const report = await getHealthReport();
+    const httpStatus = report.status === 'unhealthy' ? 503 : 200;
+    res.status(httpStatus).json(report);
+  } catch (e: any) {
+    res.status(503).json({ status: 'unhealthy', message: e.message });
+  }
 });
+// Legacy health endpoint
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 // Import routes
 import authRoutes from './auth/routes';

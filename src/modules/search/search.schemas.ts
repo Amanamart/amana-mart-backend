@@ -74,3 +74,20 @@ export interface MeilisearchClassifiedAdDoc {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface MeilisearchStoreDoc {
+  id: string;
+  type: 'store';
+  module: string;
+  name_en: string;
+  name_bn: string;
+  description_en: string;
+  description_bn: string;
+  imageUrl: string;
+  coverUrl: string;
+  rating: number;
+  zoneIds: string[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}

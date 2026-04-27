@@ -1,5 +1,5 @@
-import { prisma } from '../../../../common/lib/prisma';
-import { cacheDelete } from '../lib/redis';
+import { prisma } from '../../../common/lib/prisma';
+import { cacheDelete } from '../../../common/lib/redis';
 
 export class PromotionService {
   /**
@@ -24,7 +24,7 @@ export class PromotionService {
     if (type === 'TOP_AD') {
       await prisma.classifiedAd.update({
         where: { id: adId },
-        data: { isFeatured: true },
+        data: { isTopAd: true }, // Schema has isTopAd
       });
     } else if (type === 'URGENT') {
       await prisma.classifiedAd.update({
@@ -63,7 +63,7 @@ export class PromotionService {
       if (promo.type === 'TOP_AD') {
         await prisma.classifiedAd.update({
           where: { id: promo.adId },
-          data: { isFeatured: false },
+          data: { isTopAd: false },
         });
       } else if (promo.type === 'URGENT') {
         await prisma.classifiedAd.update({
@@ -78,7 +78,3 @@ export class PromotionService {
 }
 
 export default new PromotionService();
-
-
-
-

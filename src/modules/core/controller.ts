@@ -31,8 +31,9 @@ export const getActiveModules = async (req: Request, res: Response) => {
 
 export const getModulesByZone = async (req: Request, res: Response) => {
   try {
+    const { zoneId } = req.params as { zoneId: string };
     const lang = (req as any).lang || 'en';
-    const modules = await ModuleService.getByZone(req.params.zoneId);
+    const modules = await ModuleService.getByZone(zoneId);
     const translated = modules.map(m => {
       const nameObj = m.name as any;
       return { ...m, name: nameObj?.[lang] || nameObj?.en || 'Unknown' };
@@ -45,8 +46,9 @@ export const getModulesByZone = async (req: Request, res: Response) => {
 
 export const getModuleBySlug = async (req: Request, res: Response) => {
   try {
+    const { slug } = req.params as { slug: string };
     const lang = (req as any).lang || 'en';
-    const module = await ModuleService.getBySlug(req.params.slug as string);
+    const module = await ModuleService.getBySlug(slug);
     if (!module) return res.status(404).json({ message: 'Module not found' });
     
     const nameObj = module.name as any;
@@ -72,14 +74,10 @@ export const createModule = async (req: Request, res: Response) => {
 
 export const updateModule = async (req: Request, res: Response) => {
   try {
-    const module = await ModuleService.update(req.params.id as string, req.body);
+    const { id } = req.params as { id: string };
+    const module = await ModuleService.update(id, req.body);
     res.json(module);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 };
-
-
-
-
-

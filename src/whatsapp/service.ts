@@ -49,13 +49,13 @@ export const processWhatsAppMessage = async (phone: string, text: string) => {
         await prisma.order.create({
           data: {
             orderNumber: `WA-${Math.floor(1000 + Math.random() * 9000)}`,
-            totalAmount: 0, // Would be calculated in a real app
+            totalAmount: 0,
             status: 'pending',
             paymentStatus: 'unpaid',
-            orderType: 'delivery',
+            source: 'whatsapp',
             deliveryAddress: 'WhatsApp Provided',
-            customerId: session.customerId || undefined,
-            // In a real app, we'd parse items and add them here
+            customerId: session.customerId || '',
+            storeId: 'default', // Would be set based on chosen store
           }
         });
         responseText = '✅ Your order has been placed successfully! Our agent will contact you shortly for payment and total amount. Thank you for shopping with Amana Mart!';

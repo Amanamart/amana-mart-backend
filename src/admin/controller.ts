@@ -21,7 +21,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 export const getOrderChartData = async (req: AuthRequest, res: Response) => {
   try {
     const days = parseInt(req.query.days as string) || 7;
-    const data = [];
+    const data: any[] = [];
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -639,7 +639,7 @@ export const getStoreReviews = async (req: AuthRequest, res: Response) => {
 
 export const updateReviewStatus = async (req: AuthRequest, res: Response) => {
   try {
-    const { type, id } = req.params;
+    const { type, id } = req.params as { type: string; id: string };
     const { status } = req.body;
     if (type === 'product') {
       await prisma.productReview.update({ where: { id }, data: { status } });
@@ -657,7 +657,7 @@ export const updateReviewStatus = async (req: AuthRequest, res: Response) => {
 
 
 // Attributes
-export const getAttributes = async (req: Request, res: Response) => {
+export const getAttributes = async (req: AuthRequest, res: Response) => {
   try {
     const attributes = await prisma.attribute.findMany({
       include: { values: true }
@@ -668,7 +668,7 @@ export const getAttributes = async (req: Request, res: Response) => {
   }
 };
 
-export const createAttribute = async (req: Request, res: Response) => {
+export const createAttribute = async (req: AuthRequest, res: Response) => {
   try {
     const { name } = req.body;
     const attribute = await prisma.attribute.create({
@@ -680,9 +680,9 @@ export const createAttribute = async (req: Request, res: Response) => {
   }
 };
 
-export const updateAttribute = async (req: Request, res: Response) => {
+export const updateAttribute = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { name } = req.body;
     const attribute = await prisma.attribute.update({
       where: { id },
@@ -694,9 +694,9 @@ export const updateAttribute = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteAttribute = async (req: Request, res: Response) => {
+export const deleteAttribute = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     await prisma.attribute.delete({ where: { id } });
     res.status(204).send();
   } catch (error: any) {
@@ -704,9 +704,9 @@ export const deleteAttribute = async (req: Request, res: Response) => {
   }
 };
 
-export const addAttributeValue = async (req: Request, res: Response) => {
+export const addAttributeValue = async (req: AuthRequest, res: Response) => {
   try {
-    const { id: attributeId } = req.params;
+    const { id: attributeId } = req.params as { id: string };
     const { value } = req.body;
     const attributeValue = await prisma.attributeValue.create({
       data: { attributeId, value }
@@ -717,9 +717,9 @@ export const addAttributeValue = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteAttributeValue = async (req: Request, res: Response) => {
+export const deleteAttributeValue = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     await prisma.attributeValue.delete({ where: { id } });
     res.status(204).send();
   } catch (error: any) {

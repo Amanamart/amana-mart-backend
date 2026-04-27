@@ -1,13 +1,14 @@
-import amqp from 'amqplib';
+import amqp, { Channel, Connection } from 'amqplib';
 
 class QueueService {
-  private connection: amqp.Connection | null = null;
-  private channel: amqp.Channel | null = null;
+  private connection: Connection | null = null;
+  private channel: Channel | null = null;
 
   async connect() {
     if (!this.connection) {
-      this.connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672');
-      this.channel = await this.connection.createChannel();
+      const url = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
+      this.connection = await amqp.connect(url) as unknown as Connection;
+      this.channel = await (this.connection as any).createChannel();
     }
   }
 

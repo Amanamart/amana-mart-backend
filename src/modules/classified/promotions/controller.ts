@@ -8,9 +8,10 @@ export const promotionsController = {
   },
   async boostAd(req: Request, res: Response) {
     try {
+      const { adId } = req.params as { adId: string };
       const userId = (req as any).user.id;
       const { packageId, paymentRef } = req.body;
-      const result = await promotionsService.boostAd(req.params.adId, userId, packageId, paymentRef);
+      const result = await promotionsService.boostAd(adId, userId, packageId, paymentRef);
       res.status(201).json(result);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },
@@ -27,7 +28,10 @@ export const promotionsController = {
     catch (err: any) { res.status(400).json({ message: err.message }); }
   },
   async updatePackage(req: Request, res: Response) {
-    try { res.json(await promotionsService.updatePackage(req.params.id, req.body)); }
+    try {
+      const { id } = req.params as { id: string };
+      res.json(await promotionsService.updatePackage(id, req.body));
+    }
     catch (err: any) { res.status(400).json({ message: err.message }); }
   },
 };

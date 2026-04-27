@@ -5,25 +5,23 @@ const FOOD_MODULE_SLUG = 'food';
 
 export const getRestaurants = async (req: Request, res: Response) => {
   try {
-    const lang = (req as any).lang || 'en';
     const { zoneId } = req.query;
+    const foodModule = await prisma.module.findUnique({ where: { slug: FOOD_MODULE_SLUG } });
+    
     const restaurants = await prisma.store.findMany({
       where: {
-        module: { slug: FOOD_MODULE_SLUG },
+        moduleId: foodModule?.id,
         status: 'active',
-        zoneId: zoneId as string | undefined,
+        zoneIds: zoneId ? { has: zoneId as string } : undefined,
       },
       include: {
         _count: { select: { products: true } },
       },
     });
 
-    const translated = restaurants.map(r => {
-      const nameObj = r.name as any;
-      return { ...r, name: nameObj?.[lang] || nameObj?.en || 'Unknown' };
-    });
-
-    res.json(translated);
+    // Store name is string, so no translation needed for name itself
+    // but we can return it as-is.
+    res.json(restaurants);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -31,9 +29,10 @@ export const getRestaurants = async (req: Request, res: Response) => {
 
 export const getRestaurantDetails = async (req: Request, res: Response) => {
   try {
+    const { id } = req.params as { id: string };
     const lang = (req as any).lang || 'en';
     const restaurant = await prisma.store.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         products: {
           where: { status: 'active' },
@@ -41,21 +40,20 @@ export const getRestaurantDetails = async (req: Request, res: Response) => {
         },
       },
     });
+    
     if (!restaurant) return res.status(404).json({ message: 'Restaurant not found' });
 
-    const nameObj = restaurant.name as any;
     const translated = {
       ...restaurant,
-      name: nameObj?.[lang] || nameObj?.en || 'Unknown',
       products: restaurant.products.map(p => {
         const pNameObj = p.name as any;
         const pDescObj = p.description as any;
-        const catNameObj = p.category?.name as any;
+        const catNameObj = (p.category?.name) as any;
         return {
           ...p,
-          name: pNameObj?.[lang] || pNameObj?.en || 'Unknown',
-          description: pDescObj?.[lang] || pDescObj?.en || '',
-          category: p.category ? { ...p.category, name: catNameObj?.[lang] || catNameObj?.en || 'Unknown' } : null,
+          name: pNameObj?.[lang] || pNameObj?.en || p.name,
+          description: pDescObj?.[lang] || pDescObj?.en || p.description,
+          category: p.category ? { ...p.category, name: catNameObj?.[lang] || catNameObj?.en || p.category.name } : null,
         };
       }),
     };
@@ -70,30 +68,30 @@ export const getFoodItems = async (req: Request, res: Response) => {
   try {
     const lang = (req as any).lang || 'en';
     const { q, categoryId } = req.query;
+    const foodModule = await prisma.module.findUnique({ where: { slug: FOOD_MODULE_SLUG } });
+
     const items = await prisma.product.findMany({
       where: {
-        module: { slug: FOOD_MODULE_SLUG },
+        moduleId: foodModule?.id,
         status: 'active',
         categoryId: categoryId as string | undefined,
         OR: q ? [
-          { name: { path: [lang], string_contains: q as string } },
-          { description: { path: [lang], string_contains: q as string } },
+          { description: { contains: q as string, mode: 'insensitive' } },
         ] : undefined,
       },
       include: {
-        store: { select: { name: true, id: true } },
+        store: { select: { name: true, id: true, slug: true } },
       },
     });
 
     const translated = items.map(p => {
       const nameObj = p.name as any;
       const descObj = p.description as any;
-      const storeNameObj = p.store?.name as any;
       return {
         ...p,
-        name: nameObj?.[lang] || nameObj?.en || 'Unknown',
-        description: descObj?.[lang] || descObj?.en || '',
-        store: p.store ? { ...p.store, name: storeNameObj?.[lang] || storeNameObj?.en || 'Unknown' } : null,
+        name: nameObj?.[lang] || nameObj?.en || p.name,
+        description: descObj?.[lang] || descObj?.en || p.description,
+        store: p.store ? p.store : null,
       };
     });
 

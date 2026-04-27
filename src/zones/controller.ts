@@ -14,14 +14,13 @@ export const getZones = async (req: Request, res: Response) => {
 
 export const createZone = async (req: Request, res: Response) => {
   try {
-    const { name, coordinates } = req.body;
+    // Schema: Zone has name, area (text), status — no coordinates field
+    const { name, area = '' } = req.body;
     const zone = await prisma.zone.create({
-      data: { name, coordinates, status: 'active' },
+      data: { name, area, status: 'active' },
     });
     res.json({ success: true, data: zone });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-

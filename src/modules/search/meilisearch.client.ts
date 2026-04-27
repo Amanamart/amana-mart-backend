@@ -6,7 +6,7 @@ dotenv.config();
 const host = process.env.MEILISEARCH_HOST || 'http://localhost:7700';
 const apiKey = process.env.MEILISEARCH_MASTER_KEY || ''; // Use master key for admin operations
 
-export const meilisearch = host && apiKey 
+export const meilisearch = (host && apiKey) 
   ? new Meilisearch({ host, apiKey })
   : null;
 
@@ -40,6 +40,8 @@ export const ALL_INDICES = [
  * Initialize Meilisearch indices and settings
  */
 export const initMeilisearch = async () => {
+  if (!meilisearch) return;
+  
   try {
     for (const indexUid of ALL_INDICES) {
       const index = meilisearch.index(indexUid);

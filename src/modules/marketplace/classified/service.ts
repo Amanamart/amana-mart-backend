@@ -11,15 +11,23 @@ export class ClassifiedService {
         title: data.title,
         description: data.description,
         price: data.price,
-        condition: data.condition,
-        images: data.images,
-        categoryId: data.categoryId,
+        condition: data.condition || 'used',
+        negotiable: data.negotiable || false,
+        slug: data.slug || `${data.title.toLowerCase().replace(/ /g, '-')}-${Date.now()}`,
+        classifiedCategoryId: data.classifiedCategoryId || data.categoryId,
         userId: data.userId,
         division: data.division,
         district: data.district,
         area: data.area,
         latitude: data.latitude,
         longitude: data.longitude,
+        media: {
+          create: data.images?.map((url: string, index: number) => ({
+            url,
+            isCover: index === 0,
+            sortOrder: index,
+          })),
+        },
         attributes: {
           create: data.attributes?.map((attr: any) => ({
             name: attr.name,
@@ -29,7 +37,8 @@ export class ClassifiedService {
       },
       include: {
         attributes: true,
-        category: true,
+        classifiedCategory: true,
+        media: true,
       },
     });
     
@@ -51,23 +60,26 @@ export class ClassifiedService {
     const ads = await prisma.classifiedAd.findMany({
       where: {
         status: 'active',
-        ...(categoryId && { categoryId }),
-        ...(division && { division }),
-        ...(district && { district }),
-        ...(condition && { condition }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-          ],
-        }),
-        price: {
-          ...(minPrice && { gte: parseFloat(minPrice) }),
-          ...(maxPrice && { lte: parseFloat(maxPrice) }),
-        },
+        OR: search ? [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ] : undefined,
+        AND: [
+          categoryId ? { OR: [{ classifiedCategoryId: categoryId }, { categoryId }] } : {},
+          division ? { division } : {},
+          district ? { district } : {},
+          condition ? { condition } : {},
+          {
+            price: {
+              gte: minPrice ? parseFloat(minPrice) : undefined,
+              lte: maxPrice ? parseFloat(maxPrice) : undefined,
+            }
+          }
+        ]
       },
       include: {
-        category: true,
+        classifiedCategory: true,
+        media: true,
         user: {
           select: {
             id: true,
@@ -95,7 +107,9 @@ export class ClassifiedService {
       where: { id },
       include: {
         attributes: true,
-        category: true,
+        fieldValues: true,
+        classifiedCategory: true,
+        media: true,
         user: {
           select: {
             id: true,
@@ -120,8 +134,3 @@ export class ClassifiedService {
 }
 
 export default new ClassifiedService();
-
-
-
-
-

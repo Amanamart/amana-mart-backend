@@ -22,7 +22,8 @@ export class ClassifiedController {
 
   async getById(req: Request, res: Response) {
     try {
-      const ad = await service.getAdById(req.params.id);
+      const { id } = req.params as { id: string };
+      const ad = await service.getAdById(id);
       if (!ad) {
         return res.status(404).json({ success: false, message: 'Ad not found' });
       }
@@ -34,4 +35,3 @@ export class ClassifiedController {
 }
 
 export default new ClassifiedController();
-

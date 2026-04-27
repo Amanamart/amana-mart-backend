@@ -4,16 +4,18 @@ import sellersService from './service';
 export const sellersController = {
   async getSellerById(req: Request, res: Response) {
     try {
-      const seller = await sellersService.getSellerById(req.params.id);
+      const { id } = req.params as { id: string };
+      const seller = await sellersService.getSellerById(id);
       if (!seller) return res.status(404).json({ message: 'Seller not found' });
       res.json(seller);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   },
   async getSellerAds(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      const result = await sellersService.getSellerAds(req.params.id, page, limit);
+      const result = await sellersService.getSellerAds(id, page, limit);
       res.json(result);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   },
@@ -32,14 +34,16 @@ export const sellersController = {
   },
   async verifySeller(req: Request, res: Response) {
     try {
-      const seller = await sellersService.verifySeller(req.params.id);
+      const { id } = req.params as { id: string };
+      const seller = await sellersService.verifySeller(id);
       res.json(seller);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },
   async suspendSeller(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const { reason } = req.body;
-      const seller = await sellersService.suspendSeller(req.params.id, reason);
+      const seller = await sellersService.suspendSeller(id, reason);
       res.json(seller);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },

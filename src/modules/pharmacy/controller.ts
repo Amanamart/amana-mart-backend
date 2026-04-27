@@ -6,13 +6,22 @@ const PHARMACY_MODULE_SLUG = 'pharmacy';
 
 export const getCategories = async (req: Request, res: Response) => {
   try {
+    const lang = (req as any).lang || 'en';
+    const pharmacyModule = await prisma.module.findUnique({ where: { slug: PHARMACY_MODULE_SLUG } });
+    
     const categories = await prisma.category.findMany({
       where: {
-        module: { slug: PHARMACY_MODULE_SLUG },
+        moduleId: pharmacyModule?.id,
         status: 'active',
       },
     });
-    res.json(categories);
+
+    const translated = categories.map(c => {
+      const nameObj = c.name as any;
+      return { ...c, name: nameObj?.[lang] || nameObj?.en || c.name };
+    });
+
+    res.json(translated);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -20,28 +29,42 @@ export const getCategories = async (req: Request, res: Response) => {
 
 export const getMedicines = async (req: Request, res: Response) => {
   try {
+    const lang = (req as any).lang || 'en';
     const { q, limit = 10, page = 1 } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
+    
+    const pharmacyModule = await prisma.module.findUnique({ where: { slug: PHARMACY_MODULE_SLUG } });
 
     const medicines = await prisma.product.findMany({
       where: {
-        module: { slug: PHARMACY_MODULE_SLUG },
+        moduleId: pharmacyModule?.id,
         status: 'active',
         OR: q ? [
-          { name: { contains: q as string, mode: 'insensitive' } },
           { description: { contains: q as string, mode: 'insensitive' } },
-          // genericName is also in Product model according to schema
           { tags: { has: q as string } }, 
         ] : undefined,
       },
       include: {
         category: true,
-        store: true,
+        store: { select: { id: true, name: true, slug: true } },
       },
       take: Number(limit),
       skip: skip,
     });
-    res.json(medicines);
+
+    const translated = medicines.map(p => {
+      const nameObj = p.name as any;
+      const catNameObj = (p.category?.name) as any;
+      return {
+        ...p,
+        name: nameObj?.[lang] || nameObj?.en || p.name,
+        category: p.category
+          ? { ...p.category, name: catNameObj?.[lang] || catNameObj?.en || p.category.name }
+          : null,
+      };
+    });
+
+    res.json(translated);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -49,15 +72,30 @@ export const getMedicines = async (req: Request, res: Response) => {
 
 export const getMedicineById = async (req: Request, res: Response) => {
   try {
+    const { id } = req.params as { id: string };
+    const lang = (req as any).lang || 'en';
     const medicine = await prisma.product.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         category: true,
-        store: true,
+        store: { select: { id: true, name: true, slug: true } },
       },
     });
+    
     if (!medicine) return res.status(404).json({ message: 'Medicine not found' });
-    res.json(medicine);
+
+    const nameObj = medicine.name as any;
+    const catNameObj = (medicine.category?.name) as any;
+
+    const translated = {
+      ...medicine,
+      name: nameObj?.[lang] || nameObj?.en || medicine.name,
+      category: medicine.category
+        ? { ...medicine.category, name: catNameObj?.[lang] || catNameObj?.en || medicine.category.name }
+        : null,
+    };
+
+    res.json(translated);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -68,8 +106,7 @@ export const uploadPrescription = async (req: AuthRequest, res: Response) => {
     const { imageUrl } = req.body;
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
 
-    // Based on the PharmacyPrescription model in schema.prisma
-    const prescription = await (prisma as any).pharmacyPrescription.create({
+    const prescription = await prisma.pharmacyPrescription.create({
       data: {
         userId: req.user.id,
         image: imageUrl,

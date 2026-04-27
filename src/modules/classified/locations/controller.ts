@@ -10,7 +10,8 @@ export const locationsController = {
   },
   async getLocationBySlug(req: Request, res: Response) {
     try {
-      const loc = await locationsService.getLocationBySlug(req.params.slug);
+      const { slug } = req.params as { slug: string };
+      const loc = await locationsService.getLocationBySlug(slug);
       if (!loc) return res.status(404).json({ message: 'Location not found' });
       res.json(loc);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -29,7 +30,8 @@ export const locationsController = {
   },
   async updateLocation(req: Request, res: Response) {
     try {
-      const loc = await locationsService.updateLocation(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const loc = await locationsService.updateLocation(id, req.body);
       res.json(loc);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },

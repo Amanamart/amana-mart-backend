@@ -11,10 +11,11 @@ export const createOrder = async (req: Request, res: Response) => {
         customerId: userId,
         storeId,
         totalAmount,
+        orderNumber: `ORD-${Date.now()}`,
         deliveryAddress: address,
         paymentMethod,
         status: 'pending',
-        orderItems: {
+        items: {
           create: items.map((item: any) => ({
             productId: item.productId,
             quantity: item.quantity,
@@ -43,14 +44,16 @@ export const getMyOrders = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-export const getOrderById = async (req: Request, res: Response) => {
+
+export const getOrderById = async (req: Request, res: Response) => {
   try {
+    const { id } = req.params as { id: string };
     const order = await prisma.order.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         store: true,
-        orderItems: { include: { product: true } },
-        deliveryman: true,
+        items: { include: { product: true } },
+        rider: true,
       }
     });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });

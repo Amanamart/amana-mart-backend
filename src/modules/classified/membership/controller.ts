@@ -27,7 +27,10 @@ export const membershipController = {
     catch (err: any) { res.status(400).json({ message: err.message }); }
   },
   async updatePlan(req: Request, res: Response) {
-    try { res.json(await membershipService.updatePlan(req.params.id, req.body)); }
+    try {
+      const { id } = req.params as { id: string };
+      res.json(await membershipService.updatePlan(id, req.body));
+    }
     catch (err: any) { res.status(400).json({ message: err.message }); }
   },
 };

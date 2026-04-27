@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import adsService from './service';
 
+// Helper to safely extract string from params/query
+const p = (val: any): string => (Array.isArray(val) ? String(val[0]) : val ? String(val) : '');
+
 export const classifiedAdsController = {
   // GET /api/classified/ads
   async getAds(req: Request, res: Response) {
@@ -15,9 +18,10 @@ export const classifiedAdsController = {
   // GET /api/classified/ads/:slug
   async getAdBySlug(req: Request, res: Response) {
     try {
+      const { slug } = req.params as { slug: string };
       const userId = (req as any).user?.id;
-      const ip = req.ip || req.socket.remoteAddress;
-      const result = await adsService.getAdBySlug(req.params.slug, userId, ip);
+      const ip = p(req.ip) || p(req.socket.remoteAddress);
+      const result = await adsService.getAdBySlug(slug, userId, ip);
       if (!result) return res.status(404).json({ message: 'Ad not found' });
       res.json(result);
     } catch (err: any) {
@@ -39,8 +43,9 @@ export const classifiedAdsController = {
   // PATCH /api/classified/ads/:id
   async updateAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const userId = (req as any).user.id;
-      const ad = await adsService.updateAd(req.params.id, userId, req.body);
+      const ad = await adsService.updateAd(id, userId, req.body);
       res.json(ad);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -50,8 +55,9 @@ export const classifiedAdsController = {
   // DELETE /api/classified/ads/:id
   async deleteAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const userId = (req as any).user.id;
-      const result = await adsService.deleteAd(req.params.id, userId);
+      const result = await adsService.deleteAd(id, userId);
       res.json(result);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -61,8 +67,9 @@ export const classifiedAdsController = {
   // POST /api/classified/ads/:id/pause
   async pauseAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const userId = (req as any).user.id;
-      const result = await adsService.pauseAd(req.params.id, userId);
+      const result = await adsService.pauseAd(id, userId);
       res.json(result);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -72,9 +79,10 @@ export const classifiedAdsController = {
   // POST /api/classified/ads/:id/mark-sold
   async markSold(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const userId = (req as any).user.id;
       const type = req.body.type || 'sold';
-      const result = await adsService.markSold(req.params.id, userId, type);
+      const result = await adsService.markSold(id, userId, type);
       res.json(result);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -85,7 +93,7 @@ export const classifiedAdsController = {
   async getMyAds(req: Request, res: Response) {
     try {
       const userId = (req as any).user.id;
-      const status = req.query.status as string;
+      const status = p(req.query.status);
       const ads = await adsService.getMyAds(userId, status);
       res.json(ads);
     } catch (err: any) {
@@ -96,8 +104,9 @@ export const classifiedAdsController = {
   // POST /api/classified/ads/:id/save
   async saveAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const userId = (req as any).user.id;
-      const result = await adsService.saveAd(req.params.id, userId);
+      const result = await adsService.saveAd(id, userId);
       res.json(result);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -118,9 +127,10 @@ export const classifiedAdsController = {
   // POST /api/classified/ads/:id/report
   async reportAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const userId = (req as any).user.id;
       const { reason, message } = req.body;
-      const result = await adsService.reportAd(req.params.id, userId, reason, message);
+      const result = await adsService.reportAd(id, userId, reason, message);
       res.status(201).json(result);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -130,8 +140,9 @@ export const classifiedAdsController = {
   // POST /api/classified/ads/:id/reveal-phone
   async revealPhone(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const userId = (req as any).user.id;
-      const result = await adsService.revealPhone(req.params.id, userId);
+      const result = await adsService.revealPhone(id, userId);
       res.json(result);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -150,7 +161,8 @@ export const classifiedAdsController = {
 
   async adminApproveAd(req: Request, res: Response) {
     try {
-      const ad = await adsService.adminApproveAd(req.params.id);
+      const { id } = req.params as { id: string };
+      const ad = await adsService.adminApproveAd(id);
       res.json(ad);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -159,8 +171,9 @@ export const classifiedAdsController = {
 
   async adminRejectAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const { reason, note } = req.body;
-      const ad = await adsService.adminRejectAd(req.params.id, reason, note);
+      const ad = await adsService.adminRejectAd(id, reason, note);
       res.json(ad);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -169,8 +182,9 @@ export const classifiedAdsController = {
 
   async adminBlockAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const { note } = req.body;
-      const ad = await adsService.adminBlockAd(req.params.id, note);
+      const ad = await adsService.adminBlockAd(id, note);
       res.json(ad);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -179,15 +193,16 @@ export const classifiedAdsController = {
 
   async adminFeatureAd(req: Request, res: Response) {
     try {
+      const { id } = req.params as { id: string };
       const { featured } = req.body;
-      const ad = await adsService.adminFeatureAd(req.params.id, Boolean(featured));
+      const ad = await adsService.adminFeatureAd(id, Boolean(featured));
       res.json(ad);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
     }
   },
 
-  async getDashboardStats(req: Request, res: Response) {
+  async getDashboardStats(_req: Request, res: Response) {
     try {
       const stats = await adsService.getDashboardStats();
       res.json(stats);

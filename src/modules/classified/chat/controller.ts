@@ -11,23 +11,26 @@ export const chatController = {
   },
   async startConversation(req: Request, res: Response) {
     try {
+      const { adId } = req.params as { adId: string };
       const userId = (req as any).user.id;
-      const conv = await chatService.startConversation(req.params.adId, userId);
+      const conv = await chatService.startConversation(adId, userId);
       res.status(201).json(conv);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },
   async getMessages(req: Request, res: Response) {
     try {
+      const { conversationId } = req.params as { conversationId: string };
       const userId = (req as any).user.id;
-      const msgs = await chatService.getMessages(req.params.conversationId, userId);
+      const msgs = await chatService.getMessages(conversationId, userId);
       res.json(msgs);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },
   async sendMessage(req: Request, res: Response) {
     try {
+      const { conversationId } = req.params as { conversationId: string };
       const userId = (req as any).user.id;
       const { body, messageType, imageUrl } = req.body;
-      const msg = await chatService.sendMessage(req.params.conversationId, userId, body, messageType, imageUrl);
+      const msg = await chatService.sendMessage(conversationId, userId, body, messageType, imageUrl);
       res.status(201).json(msg);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },
@@ -39,7 +42,8 @@ export const chatController = {
   },
   async adminBlockConversation(req: Request, res: Response) {
     try {
-      const conv = await chatService.adminBlockConversation(req.params.id);
+      const { id } = req.params as { id: string };
+      const conv = await chatService.adminBlockConversation(id);
       res.json(conv);
     } catch (err: any) { res.status(400).json({ message: err.message }); }
   },

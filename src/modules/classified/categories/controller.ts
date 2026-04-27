@@ -18,16 +18,17 @@ export const categoriesController = {
 
   async getCategoryBySlug(req: Request, res: Response) {
     try {
+      const { slug } = req.params as { slug: string };
       const lang = (req as any).lang || 'en';
-      const cat = await categoriesService.getCategoryBySlug(req.params.slug);
+      const cat = await categoriesService.getCategoryBySlug(slug);
       if (!cat) return res.status(404).json({ message: 'Category not found' });
-      
+
       const nameObj = cat.name as any;
       const translatedCat = {
         ...cat,
         name: nameObj?.[lang] || nameObj?.en || 'Unknown'
       };
-      
+
       res.json(translatedCat);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -54,7 +55,8 @@ export const categoriesController = {
 
   async updateCategory(req: Request, res: Response) {
     try {
-      const cat = await categoriesService.updateCategory(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const cat = await categoriesService.updateCategory(id, req.body);
       res.json(cat);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -63,7 +65,8 @@ export const categoriesController = {
 
   async deleteCategory(req: Request, res: Response) {
     try {
-      await categoriesService.deleteCategory(req.params.id);
+      const { id } = req.params as { id: string };
+      await categoriesService.deleteCategory(id);
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -81,7 +84,8 @@ export const categoriesController = {
 
   async getFields(req: Request, res: Response) {
     try {
-      const fields = await categoriesService.getFields(req.params.id);
+      const { id } = req.params as { id: string };
+      const fields = await categoriesService.getFields(id);
       res.json(fields);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -90,7 +94,8 @@ export const categoriesController = {
 
   async createField(req: Request, res: Response) {
     try {
-      const field = await categoriesService.createField({ ...req.body, categoryId: req.params.id });
+      const { id } = req.params as { id: string };
+      const field = await categoriesService.createField({ ...req.body, categoryId: id });
       res.status(201).json(field);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -99,7 +104,8 @@ export const categoriesController = {
 
   async updateField(req: Request, res: Response) {
     try {
-      const field = await categoriesService.updateField(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const field = await categoriesService.updateField(id, req.body);
       res.json(field);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -108,7 +114,8 @@ export const categoriesController = {
 
   async deleteField(req: Request, res: Response) {
     try {
-      await categoriesService.deleteField(req.params.id);
+      const { id } = req.params as { id: string };
+      await categoriesService.deleteField(id);
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ message: err.message });

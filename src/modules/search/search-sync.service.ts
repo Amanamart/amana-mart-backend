@@ -7,6 +7,7 @@ export class SearchSyncService {
    * Sync a product to Meilisearch
    */
   static async syncProduct(productId: string) {
+    if (!meilisearch) return;
     try {
       const product = await prisma.product.findUnique({
         where: { id: productId },
@@ -19,7 +20,6 @@ export class SearchSyncService {
       });
 
       if (!product) {
-        // If product not found in DB, delete from index
         await meilisearch.index(MEILI_INDEX_PRODUCTS).deleteDocument(productId);
         await meilisearch.index(MEILI_INDEX_ALL).deleteDocument(`product_${productId}`);
         return;
@@ -29,7 +29,7 @@ export class SearchSyncService {
         id: product.id,
         type: 'product',
         module: product.store.module.slug,
-        title_en: (product.name as any).en || '',
+        title_en: (product.name as any).en || product.name as string || '',
         title_bn: (product.name as any).bn || '',
         description_en: product.description || '',
         description_bn: product.description || '',
@@ -53,7 +53,6 @@ export class SearchSyncService {
         updatedAt: product.updatedAt.toISOString(),
       };
 
-      // Index in specific index and global index
       await meilisearch.index(MEILI_INDEX_PRODUCTS).addDocuments([doc]);
       await meilisearch.index(MEILI_INDEX_ALL).addDocuments([{
         ...doc,
@@ -72,6 +71,7 @@ export class SearchSyncService {
    * Sync a store to Meilisearch
    */
   static async syncStore(storeId: string) {
+    if (!meilisearch) return;
     try {
       const store = await prisma.store.findUnique({
         where: { id: storeId },
@@ -90,14 +90,13 @@ export class SearchSyncService {
         module: store.module.slug,
         name_en: store.name,
         name_bn: store.name,
-        description_en: store.description || '',
-        description_bn: store.description || '',
+        description_en: store.address || '',
+        description_bn: store.address || '',
         imageUrl: store.logo || '',
-        coverUrl: store.coverPhoto || '',
+        coverUrl: store.cover || '',
         rating: store.rating,
         zoneIds: store.zoneIds,
         status: store.status,
-        tags: store.tags,
         createdAt: store.createdAt.toISOString(),
         updatedAt: store.updatedAt.toISOString(),
       };
@@ -107,7 +106,7 @@ export class SearchSyncService {
         ...doc,
         id: `store_${store.id}`,
         originalId: store.id,
-        title_en: store.name, // Mapping name to title for global search consistency
+        title_en: store.name,
         title_bn: store.name,
       }]);
 
@@ -122,12 +121,13 @@ export class SearchSyncService {
    * Sync a classified ad to Meilisearch
    */
   static async syncClassifiedAd(adId: string) {
+    if (!meilisearch) return;
     try {
       const ad = await prisma.classifiedAd.findUnique({
         where: { id: adId },
         include: {
-          category: true,
-          user: true
+          classifiedCategory: true,
+          user: { select: { id: true, name: true } }
         }
       });
 
@@ -145,16 +145,16 @@ export class SearchSyncService {
         title_bn: ad.title,
         description_en: ad.description || '',
         description_bn: ad.description || '',
-        categoryId: ad.categoryId,
-        categoryName: (ad.category.name as any).en || '',
+        categoryId: ad.classifiedCategoryId || '',
+        categoryName: ad.classifiedCategory?.name || '',
         sellerId: ad.userId,
         sellerName: ad.user.name || '',
         locationId: ad.locationId || '',
-        locationName: ad.locationName || '',
+        locationName: ad.area || ad.district || ad.division || '',
         price: ad.price,
-        negotiable: ad.isNegotiable,
+        negotiable: ad.negotiable,
         condition: ad.condition,
-        imageUrl: ad.images[0] || '',
+        imageUrl: '',
         slug: ad.slug,
         status: ad.status,
         promoted: ad.isPromoted,
@@ -177,29 +177,27 @@ export class SearchSyncService {
   }
 
   /**
-   * Reindex everything
+   * Full reindex — sync all active products, stores, and ads
    */
-  static async reindexAll() {
-    console.log('Starting full reindexing...');
-    
-    // Index Products
-    const products = await prisma.product.findMany({ select: { id: true } });
-    for (const p of products) {
-      await this.syncProduct(p.id);
+  static async fullReindex() {
+    if (!meilisearch) {
+      console.warn('Meilisearch not configured, skipping reindex');
+      return;
     }
+    console.log('Starting full Meilisearch reindex...');
 
-    // Index Stores
-    const stores = await prisma.store.findMany({ select: { id: true } });
-    for (const s of stores) {
-      await this.syncStore(s.id);
-    }
+    const [products, stores, ads] = await Promise.all([
+      prisma.product.findMany({ where: { status: 'active' }, select: { id: true } }),
+      prisma.store.findMany({ where: { status: 'active' }, select: { id: true } }),
+      prisma.classifiedAd.findMany({ where: { status: 'active' }, select: { id: true } }),
+    ]);
 
-    // Index Classified Ads
-    const ads = await prisma.classifiedAd.findMany({ select: { id: true } });
-    for (const ad of ads) {
-      await this.syncClassifiedAd(ad.id);
-    }
+    await Promise.all([
+      ...products.map(p => SearchSyncService.syncProduct(p.id)),
+      ...stores.map(s => SearchSyncService.syncStore(s.id)),
+      ...ads.map(a => SearchSyncService.syncClassifiedAd(a.id)),
+    ]);
 
-    console.log('Full reindexing completed');
+    console.log(`✅ Full reindex complete: ${products.length} products, ${stores.length} stores, ${ads.length} ads`);
   }
 }

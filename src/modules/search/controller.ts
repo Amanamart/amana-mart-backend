@@ -10,40 +10,23 @@ export const globalSearch = async (req: Request, res: Response) => {
   const limitNum = Number(limit);
   const pageNum = Number(page);
   const skip = (pageNum - 1) * limitNum;
+  const lang = (req as any).lang || 'en';
 
   if (!query) {
-    return res.json({
-      results: [],
-      total: 0,
-      page: pageNum,
-      limit: limitNum,
-      query: '',
-      processingTimeMs: 0,
-      mode: 'meilisearch'
-    });
+    return res.json({ results: [], total: 0, page: pageNum, limit: limitNum, query: '', processingTimeMs: 0, mode: 'meilisearch' });
   }
 
   try {
     // 1. Try Meilisearch
-    if (!meilisearch) {
-      throw new Error('Meilisearch not configured');
-    }
+    if (!meilisearch) throw new Error('Meilisearch not configured');
     const index = meilisearch.index(MEILI_INDEX_ALL);
-    
-    // Construct filters
-    const filters: string[] = [];
-    
-    // Handle App Mismatch: module=stores means type=store, module=items means type=product
-    let activeModule = moduleSlug as string;
-    let activeType = type as string;
 
-    if (moduleSlug === 'stores') {
-      activeType = 'store';
-      activeModule = undefined;
-    } else if (moduleSlug === 'items') {
-      activeType = 'product';
-      activeModule = undefined;
-    }
+    const filters: string[] = [];
+    let activeModule = moduleSlug as string | undefined;
+    let activeType = type as string | undefined;
+
+    if (moduleSlug === 'stores') { activeType = 'store'; activeModule = undefined; }
+    else if (moduleSlug === 'items') { activeType = 'product'; activeModule = undefined; }
 
     if (activeModule) filters.push(`module = "${activeModule}"`);
     if (activeType) filters.push(`type = "${activeType}"`);
@@ -61,36 +44,36 @@ export const globalSearch = async (req: Request, res: Response) => {
     });
 
     const processingTimeMs = Date.now() - startTime;
+    const totalHits = (searchResults as any).estimatedTotalHits || searchResults.hits.length;
 
-    // Log search
-    await prisma.searchLog.create({
+    // Analytics
+    prisma.searchLog.create({
       data: {
+        userId: (req as any).user?.id,
         query,
         module: moduleSlug as string,
         zoneId: zoneId as string,
-        resultCount: searchResults.totalHits,
+        resultCount: totalHits,
         mode: 'meilisearch',
         processingTimeMs,
-        userId: (req as any).user?.id,
       }
-    });
+    }).catch(err => console.error('Failed to log search:', err));
 
-    // Update popular search terms
-    await prisma.popularSearchTerm.upsert({
-      where: { term_module: { term: query.toLowerCase(), module: (moduleSlug as string) || 'global' } },
-      update: { count: { increment: 1 }, lastSearchedAt: new Date() },
-      create: { term: query.toLowerCase(), module: (moduleSlug as string) || 'global', count: 1 },
-    });
-
-    if (searchResults.totalHits === 0) {
-      await prisma.noResultSearch.create({
+    if (totalHits === 0) {
+      prisma.noResultSearch.create({
         data: { query, module: moduleSlug as string, zoneId: zoneId as string }
-      });
+      }).catch(err => console.error('Failed to log no-result search:', err));
+    } else {
+      prisma.popularSearchTerm.upsert({
+        where: { term_module: { term: query.toLowerCase().trim(), module: (moduleSlug as string) || 'global' } },
+        create: { term: query.toLowerCase().trim(), module: (moduleSlug as string) || 'global', count: 1 },
+        update: { count: { increment: 1 }, lastSearchedAt: new Date() }
+      }).catch(err => console.error('Failed to update popular term:', err));
     }
 
     const response: SearchResponse = {
       results: searchResults.hits,
-      total: searchResults.totalHits,
+      total: totalHits,
       page: pageNum,
       limit: limitNum,
       query,
@@ -102,57 +85,50 @@ export const globalSearch = async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error('Meilisearch error, falling back to Postgres:', error.message);
-    
+
     // 2. Fallback to PostgreSQL
     try {
       const postgresStartTime = Date.now();
-      
-      // Handle App Mismatch for Fallback
-      let activeModule = moduleSlug as string;
-      let activeType = type as string;
+      let activeModule = moduleSlug as string | undefined;
+      let activeType = type as string | undefined;
 
-      if (moduleSlug === 'stores') {
-        activeType = 'store';
-        activeModule = undefined;
-      } else if (moduleSlug === 'items') {
-        activeType = 'product';
-        activeModule = undefined;
-      }
+      if (moduleSlug === 'stores') { activeType = 'store'; activeModule = undefined; }
+      else if (moduleSlug === 'items') { activeType = 'product'; activeModule = undefined; }
 
       const products = activeType === 'store' ? [] : await prisma.product.findMany({
         where: {
           AND: [
             {
               OR: [
-                { name: { path: [req.lang || 'en'], string_contains: query } },
-                { description: { path: [req.lang || 'en'], string_contains: query } },
+                { description: { contains: query, mode: 'insensitive' } },
               ],
             },
-            activeModule ? { store: { module: { slug: activeModule as string } } } : {},
+            activeModule ? { store: { module: { slug: activeModule } } } : {},
             { status: 'active' },
           ],
         },
         include: {
           store: { include: { module: true } },
+          category: true,
         },
         take: limitNum,
-        skip: skip,
+        skip,
       });
 
       const stores = activeType === 'product' ? [] : await prisma.store.findMany({
         where: {
           AND: [
             { name: { contains: query, mode: 'insensitive' } },
-            activeModule ? { module: { slug: activeModule as string } } : {},
+            activeModule ? { module: { slug: activeModule } } : {},
             { status: 'active' },
           ],
         },
         include: { module: true },
         take: limitNum,
-        skip: skip,
+        skip,
       });
 
-      const classifiedAds = (activeType === 'store' || activeType === 'product') ? [] : await prisma.classifiedAd.findMany({
+      const classifiedAds = activeModule && activeModule !== 'classified' ? [] : await prisma.classifiedAd.findMany({
         where: {
           AND: [
             {
@@ -165,52 +141,29 @@ export const globalSearch = async (req: Request, res: Response) => {
           ],
         },
         take: limitNum,
-        skip: skip,
+        skip,
       });
 
       const totalCount = products.length + stores.length + classifiedAds.length;
-      
-      const results = [
-        ...products.map((p: any) => ({
-          id: p.id,
-          title: p.name[req.lang || 'en'],
-          description: p.description,
-          price: p.price,
-          module: p.store.module.slug,
-          type: 'product',
-        })),
-        ...stores.map((s: any) => ({
-          id: s.id,
-          title: s.name,
-          description: s.description,
-          module: s.module.slug,
-          type: 'store',
-          imageUrl: s.logo,
-        })),
-        ...classifiedAds.map((ad) => ({
-          id: ad.id,
-          title: ad.title,
-          description: ad.description,
-          price: ad.price,
-          module: 'classified',
-          type: 'classified_ad',
-        })),
-      ];
-
       const processingTimeMs = Date.now() - postgresStartTime;
 
-      // Log fallback search
-      await prisma.searchLog.create({
+      const results = [
+        ...products.map(p => ({ ...p, type: 'product', module: (p.store as any)?.module?.slug })),
+        ...stores.map(s => ({ ...s, type: 'store', module: (s as any).module?.slug })),
+        ...classifiedAds.map(a => ({ ...a, type: 'classified_ad', module: 'classified' })),
+      ];
+
+      // Analytics for fallback
+      prisma.searchLog.create({
         data: {
+          userId: (req as any).user?.id,
           query,
           module: moduleSlug as string,
-          zoneId: zoneId as string,
           resultCount: totalCount,
           mode: 'fallback_postgres',
           processingTimeMs,
-          userId: (req as any).user?.id,
         }
-      });
+      }).catch(err => console.error('Failed to log search fallback:', err));
 
       const response: SearchResponse = {
         results,

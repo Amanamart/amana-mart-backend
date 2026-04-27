@@ -6,18 +6,18 @@ const GROCERY_MODULE_SLUG = 'grocery';
 export const getCategories = async (req: Request, res: Response) => {
   try {
     const lang = (req as any).lang || 'en';
+    // Category has moduleId via module relation
+    const module = await prisma.module.findUnique({ where: { slug: GROCERY_MODULE_SLUG } });
     const categories = await prisma.category.findMany({
       where: {
-        module: { slug: GROCERY_MODULE_SLUG },
+        moduleId: module?.id,
         status: 'active',
       },
     });
-
     const translated = categories.map(c => {
       const nameObj = c.name as any;
-      return { ...c, name: nameObj?.[lang] || nameObj?.en || 'Unknown' };
+      return { ...c, name: nameObj?.[lang] || nameObj?.en || c.name };
     });
-
     res.json(translated);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -30,36 +30,33 @@ export const getProducts = async (req: Request, res: Response) => {
     const { categoryId, q, limit = 10, page = 1 } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
+    const module = await prisma.module.findUnique({ where: { slug: GROCERY_MODULE_SLUG } });
     const products = await prisma.product.findMany({
       where: {
-        module: { slug: GROCERY_MODULE_SLUG },
+        moduleId: module?.id,
         status: 'active',
         categoryId: categoryId as string | undefined,
         OR: q ? [
-          { name: { path: [lang], string_contains: q as string } },
-          { description: { path: [lang], string_contains: q as string } },
+          { description: { contains: q as string, mode: 'insensitive' } },
         ] : undefined,
       },
       include: {
         category: true,
-        store: true,
+        store: { select: { id: true, name: true, slug: true } },
       },
       take: Number(limit),
-      skip: skip,
+      skip,
     });
 
     const translated = products.map(p => {
       const nameObj = p.name as any;
-      const descObj = p.description as any;
-      const catNameObj = p.category?.name as any;
-      const storeNameObj = p.store?.name as any;
-
+      const catNameObj = (p.category?.name) as any;
       return {
         ...p,
-        name: nameObj?.[lang] || nameObj?.en || 'Unknown',
-        description: descObj?.[lang] || descObj?.en || '',
-        category: p.category ? { ...p.category, name: catNameObj?.[lang] || catNameObj?.en || 'Unknown' } : null,
-        store: p.store ? { ...p.store, name: storeNameObj?.[lang] || storeNameObj?.en || 'Unknown' } : null,
+        name: nameObj?.[lang] || nameObj?.en || p.name,
+        category: p.category
+          ? { ...p.category, name: catNameObj?.[lang] || catNameObj?.en || p.category.name }
+          : null,
       };
     });
 
@@ -71,28 +68,27 @@ export const getProducts = async (req: Request, res: Response) => {
 
 export const getProductById = async (req: Request, res: Response) => {
   try {
+    const { id } = req.params as { id: string };
     const lang = (req as any).lang || 'en';
     const product = await prisma.product.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         category: true,
-        store: true,
+        store: { select: { id: true, name: true, slug: true } },
         reviews: true,
       },
     });
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
     const nameObj = product.name as any;
-    const descObj = product.description as any;
-    const catNameObj = product.category?.name as any;
-    const storeNameObj = product.store?.name as any;
+    const catNameObj = (product.category?.name) as any;
 
     const translated = {
       ...product,
-      name: nameObj?.[lang] || nameObj?.en || 'Unknown',
-      description: descObj?.[lang] || descObj?.en || '',
-      category: product.category ? { ...product.category, name: catNameObj?.[lang] || catNameObj?.en || 'Unknown' } : null,
-      store: product.store ? { ...product.store, name: storeNameObj?.[lang] || storeNameObj?.en || 'Unknown' } : null,
+      name: nameObj?.[lang] || nameObj?.en || product.name,
+      category: product.category
+        ? { ...product.category, name: catNameObj?.[lang] || catNameObj?.en || product.category.name }
+        : null,
     };
 
     res.json(translated);
@@ -101,31 +97,14 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 };
 
-export const createProduct = async (req: Request, res: Response) => {
-  try {
-    const data = req.body;
-    // Implementation for creating product
-    // Needs validation and permission check
-    res.status(501).json({ message: 'Not implemented' });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
-  }
+export const createProduct = async (_req: Request, res: Response) => {
+  res.status(501).json({ message: 'Not implemented' });
 };
 
-export const updateProduct = async (req: Request, res: Response) => {
-  try {
-    // Implementation
-    res.status(501).json({ message: 'Not implemented' });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
-  }
+export const updateProduct = async (_req: Request, res: Response) => {
+  res.status(501).json({ message: 'Not implemented' });
 };
 
-export const deleteProduct = async (req: Request, res: Response) => {
-  try {
-    // Implementation
-    res.status(501).json({ message: 'Not implemented' });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
-  }
+export const deleteProduct = async (_req: Request, res: Response) => {
+  res.status(501).json({ message: 'Not implemented' });
 };

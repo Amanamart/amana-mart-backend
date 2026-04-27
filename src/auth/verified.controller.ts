@@ -36,8 +36,8 @@ export class VerifiedController {
    */
   async handleRequest(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const { status, reason } = req.body;
+      const { id } = req.params as { id: string };
+      const { status } = req.body;
 
       const profile = await prisma.verifiedProfile.update({
         where: { id },

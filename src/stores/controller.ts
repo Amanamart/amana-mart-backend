@@ -22,7 +22,7 @@ export const getStores = async (req: Request, res: Response) => {
 
 export const getStoreById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const store = await prisma.store.findUnique({
       where: { id },
       include: {
@@ -39,15 +39,17 @@ export const getStoreById = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-export const getVendorOrders = async (req: Request, res: Response) => {
+
+export const getVendorOrders = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const store = await prisma.store.findFirst({ where: { vendorId: userId } });
+    // Schema uses ownerId for store owner
+    const store = await prisma.store.findFirst({ where: { ownerId: userId } });
     if (!store) return res.status(404).json({ success: false, message: 'Store not found for this vendor' });
 
     const orders = await prisma.order.findMany({
       where: { storeId: store.id },
-      include: { customer: true, orderItems: { include: { product: true } } },
+      include: { customer: true, items: { include: { product: true } } },
       orderBy: { createdAt: 'desc' }
     });
     res.json({ success: true, data: orders });

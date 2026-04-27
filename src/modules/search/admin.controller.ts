@@ -5,21 +5,21 @@ import { prisma } from '../../main';
 
 export const getSearchHealth = async (req: Request, res: Response) => {
   try {
+    if (!meilisearch) {
+      return res.json({
+        status: 'warning',
+        meilisearch: { status: 'disabled' },
+        fallback: { status: 'available' },
+        timestamp: new Date(),
+      });
+    }
+
     const health = await meilisearch.health();
     const stats = await meilisearch.getStats();
-    
-    // Check fallback status (Postgres is always up if this API is running)
-    const fallbackStatus = 'available';
-
     res.json({
       status: health.status === 'available' ? 'healthy' : 'unhealthy',
-      meilisearch: {
-        status: health.status,
-        stats,
-      },
-      fallback: {
-        status: fallbackStatus,
-      },
+      meilisearch: { status: health.status, stats },
+      fallback: { status: 'available' },
       timestamp: new Date(),
     });
   } catch (error: any) {
@@ -29,9 +29,7 @@ export const getSearchHealth = async (req: Request, res: Response) => {
 
 export const reindexAll = async (req: Request, res: Response) => {
   try {
-    // Start reindexing in background
-    SearchSyncService.reindexAll().catch(err => console.error('Background reindex failed:', err));
-    
+    SearchSyncService.fullReindex().catch(err => console.error('Background reindex failed:', err));
     res.json({ message: 'Reindexing started in background' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
