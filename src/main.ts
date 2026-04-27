@@ -11,6 +11,7 @@ dotenv.config();
 const app = express();
 
 import { prisma } from './common/lib/prisma';
+import { setupSwagger } from './common/lib/swagger';
 
 const PORT = process.env.PORT || 5000;
 
@@ -25,6 +26,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 import { languageMiddleware } from './middleware/language';
 app.use(languageMiddleware);
+
+// Initialize Swagger
+setupSwagger(app);
 
 // Static files
 import path from 'path';
@@ -132,7 +136,8 @@ const startServer = async () => {
 
   httpServer.listen(PORT, () => {
     console.log(`🚀 Amana Mart Backend running on port ${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+    console.log(`📖 Documentation: http://localhost:${PORT}/api/docs`);
     console.log(`🔌 Socket.io initialized`);
   });
 };
